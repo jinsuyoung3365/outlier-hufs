@@ -1,0 +1,86 @@
+[아웃라이어 — 배포 방법 (다른 컴퓨터에서도 열리게 하기)]
+
+로컬에서만 쓸 거면 이 파일은 무시하고 README.txt 대로 python3 server.py 만 하면 됩니다.
+아래는 인터넷 주소(https://...)를 만들어 팀원·심사위원도 열 수 있게 하는 방법입니다.
+
+
+■ 0. 시작 전 확인
+
+  secret.env 는 절대 깃허브에 올라가면 안 됩니다.
+  .gitignore 에 이미 등록해 뒀으니 그대로 두면 됩니다.
+  배포 서버에는 이 파일 대신 '환경 변수'로 키를 넣습니다 (3단계).
+
+
+■ 1. 깃허브에 올리기
+
+  이 폴더(outlier-hufs)에서 터미널을 열고 순서대로 입력:
+
+    git init
+    git add .
+    git commit -m "아웃라이어 응급실 경로 안내 프로토타입"
+
+  github.com 에서 새 저장소(New repository)를 만듭니다.
+    - 이름: outlier-hufs (아무거나 가능)
+    - Public / Private 아무거나 (Private 도 Render 무료 연동 가능)
+    - README 추가 체크는 하지 마세요
+
+  만든 뒤 화면에 나오는 주소를 넣어 실행:
+
+    git remote add origin https://github.com/내아이디/outlier-hufs.git
+    git branch -M main
+    git push -u origin main
+
+  ※ 푸시 후 깃허브 웹에서 secret.env 가 안 보이는지 꼭 확인하세요.
+
+
+■ 2. Render 에 배포하기
+
+  render.com 접속 → Get Started → GitHub 계정으로 로그인
+  → New + → Web Service → 방금 만든 저장소 선택 → Connect
+
+  설정값:
+    Name            : outlier-hufs (주소에 들어감)
+    Language        : Python 3
+    Build Command   : (비워두기)
+    Start Command   : python server.py
+    Instance Type   : Free
+
+  Create Web Service 클릭
+
+
+■ 3. 카카오 REST 키를 환경 변수로 넣기
+
+  Render 대시보드 → 해당 서비스 → 왼쪽 메뉴 Environment
+  → Add Environment Variable
+
+    Key   : KAKAO_REST_KEY
+    Value : (secret.env 안에 있는 키 값)
+
+  저장하면 자동으로 다시 배포됩니다.
+
+
+■ 4. 카카오 개발자 콘솔에 새 주소 등록
+
+  배포가 끝나면 https://outlier-hufs.onrender.com 같은 주소가 나옵니다.
+  이 주소를 카카오에 등록해야 지도가 뜹니다.
+
+  developers.kakao.com → 내 애플리케이션 → outlier
+  → 앱 설정 → 플랫폼 키 → JavaScript 키 → JavaScript SDK 도메인
+  → 배포 주소 추가 후 저장
+
+  (localhost:3000 은 그대로 두세요. 로컬 개발에 계속 필요합니다.)
+
+
+■ 5. 확인
+
+  배포 주소를 다른 컴퓨터나 휴대폰에서 열어봅니다.
+  https 주소라서 '📍 내 위치로' 기능도 정상 동작합니다.
+
+
+■ 참고
+
+  - Render 무료 플랜은 15분간 접속이 없으면 서버가 잠들고,
+    다음 접속 때 깨어나는 데 30초~1분 정도 걸립니다.
+    발표 직전에 미리 한 번 열어두면 바로 뜹니다.
+  - 코드를 수정한 뒤에는 git add / commit / push 만 하면
+    Render 가 자동으로 다시 배포합니다.

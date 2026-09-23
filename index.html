@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아웃라이어 — 응급실 최적경로 안내</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF3F9;
+  --ink:#0B1930;
+  --sub:#51617A;
+  --line:#DCE4EF;
+  --card:#FFFFFF;
+
+  --primary:#0B5FA5;
+  --primary-dark:#062E52;
+  --primary-tint:#E7F1FA;
+
+  --accent:#FF6B4A;
+  --accent-dark:#D9482B;
+
+  --safe:#1E8F5F;
+  --safe-tint:#E7F6EE;
+  --warn:#B4770F;
+  --warn-tint:#FBF1DE;
+  --danger:#C43D2E;
+  --danger-tint:#FBEAE7;
+
+  --radius-lg:20px;
+  --radius-md:14px;
+  --shadow-card:0 1px 2px rgba(11,25,48,.04), 0 10px 24px -14px rgba(11,25,48,.18);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+  line-height:1.6;
+}
+h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
+  font-family:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+
+/* ---------- 상단바 ---------- */
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 26px;
+  background:var(--primary-dark);
+  color:#fff;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{flex:none}
+.brand-text{display:flex;flex-direction:column;line-height:1.25}
+.brand-name{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.brand-sub{font-size:11.5px;color:#9FC1E0}
+.clock{font-size:12.5px;color:#9FC1E0;font-variant-numeric:tabular-nums;font-weight:500}
+
+/* ---------- 히어로 ---------- */
+.hero{
+  background:
+    radial-gradient(600px 260px at 88% -10%, rgba(255,107,74,.35), transparent 60%),
+    linear-gradient(155deg, #062E52 0%, #0B5FA5 72%, #1279C6 100%);
+  color:#fff;
+  padding:46px 24px 54px;
+}
+.hero-inner{max-width:1120px;margin:0 auto}
+.hero-eyebrow{
+  font-size:12.5px;font-weight:600;color:#BFDCF2;
+  margin:0 0 12px;
+}
+.hero h1{
+  font-size:clamp(24px,4vw,34px);
+  font-weight:700;line-height:1.32;letter-spacing:-.015em;
+  margin:0 0 14px;max-width:640px;
+}
+.hero-lead{
+  font-size:14.5px;color:#D9EAF7;max-width:560px;margin:0;line-height:1.75;
+}
+
+/* ---------- 레이아웃 ---------- */
+.layout{
+  max-width:1120px;
+  margin:-26px auto 0;
+  padding:0 20px 60px;
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+}
+.panel{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-card);
+  padding:26px;
+}
+.input-panel{grid-column:1 / 2}
+.map-panel{grid-column:2 / 3;grid-row:1 / 3;padding:14px}
+.result-panel{grid-column:1 / 2}
+.chat-panel{grid-column:1 / 3}
+
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;margin-top:-18px}
+  .input-panel,.map-panel,.result-panel,.chat-panel{grid-column:1 / 2;grid-row:auto}
+}
+
+/* ---------- 타이포 ---------- */
+.panel-title{font-size:16px;margin:0 0 10px;font-weight:700;color:var(--primary-dark)}
+.lead{color:var(--sub);font-size:13.5px;margin:0 0 18px}
+
+/* ---------- 입력 폼 ---------- */
+.search-form{display:grid;gap:12px}
+.field label{display:block;font-size:12.5px;color:var(--sub);font-weight:600;margin-bottom:5px}
+.field select{
+  width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+  font-size:14.5px;background:#F8FAFC;color:var(--ink);
+  transition:border-color .15s ease;
+}
+.field select:focus{outline:none;border-color:var(--primary)}
+.btn-primary{
+  margin-top:4px;padding:13px;border:none;border-radius:10px;
+  background:var(--accent);color:#fff;font-size:15px;font-weight:700;
+  cursor:pointer;transition:background .15s ease,transform .05s ease;
+  box-shadow:0 8px 18px -8px rgba(255,107,74,.55);
+}
+.btn-primary:hover{background:var(--accent-dark)}
+.btn-primary:active{transform:translateY(1px)}
+
+.risk-legend{
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;gap:16px;font-size:12px;color:var(--sub);align-items:center;
+}
+.risk-legend span{display:inline-flex;align-items:center}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.dot-safe{background:var(--safe)}
+.dot-warn{background:var(--warn)}
+.dot-danger{background:var(--danger)}
+
+/* ---------- 지도 ---------- */
+.map-box{
+  height:100%;min-height:360px;border-radius:12px;overflow:hidden;
+  background:
+    radial-gradient(220px 220px at 75% 25%, rgba(11,95,165,.10), transparent 60%),
+    linear-gradient(135deg,#E4EDF7,#F3F7FB);
+  display:flex;align-items:center;justify-content:center;
+  border:1px dashed #B9CEE2;
+}
+.map-placeholder{text-align:center;color:var(--sub);font-size:13px;padding:20px}
+.map-placeholder p strong{color:var(--primary-dark);font-size:14.5px}
+.map-placeholder-sub{margin-top:8px;line-height:1.8}
+.map-placeholder code{
+  background:#fff;border:1px solid var(--line);border-radius:5px;
+  padding:1px 5px;font-size:12px;color:var(--primary-dark);
+}
+
+/* ---------- 병원 카드 ---------- */
+.hospital-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.hospital-card{
+  border:1px solid var(--line);border-radius:12px;padding:15px 17px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  transition:border-color .15s ease,transform .1s ease;
+}
+.hospital-card:hover{border-color:#B9CEE2;transform:translateY(-1px)}
+.hospital-name{font-weight:700;font-size:14.5px}
+.hospital-sub{font-size:12.5px;color:var(--sub);margin-top:3px}
+.hospital-eta{font-size:20px;font-weight:700;color:var(--primary-dark);white-space:nowrap}
+.hospital-eta small{font-size:12px;font-weight:600;color:var(--sub);font-family:-apple-system,sans-serif}
+
+.badge{
+  display:inline-block;padding:3px 10px;border-radius:999px;
+  font-size:11.5px;font-weight:700;margin-top:7px;
+}
+.badge.safe{background:var(--safe-tint);color:var(--safe)}
+.badge.warn{background:var(--warn-tint);color:var(--warn)}
+.badge.danger{background:var(--danger-tint);color:var(--danger)}
+
+/* ---------- 챗봇 ---------- */
+.chat-log{
+  border:1px solid var(--line);border-radius:12px;padding:14px;
+  height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+  background:#F8FAFD;margin-bottom:12px;
+}
+.chat-bubble{
+  max-width:80%;padding:9px 13px;border-radius:12px;font-size:13.5px;line-height:1.6;
+}
+.chat-bubble.bot{background:var(--primary-tint);color:var(--primary-dark);align-self:flex-start;border-bottom-left-radius:3px}
+.chat-bubble.user{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:3px}
+
+.chat-form{display:flex;gap:8px}
+.chat-form input{
+  flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px;
+  background:#F8FAFC;
+}
+.chat-form input:focus{outline:none;border-color:var(--primary)}
+.chat-form button{
+  padding:11px 18px;border:none;border-radius:10px;background:var(--primary-dark);
+  color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;
+}
+
+.footer{
+  text-align:center;color:var(--sub);font-size:12px;padding:0 20px 34px;
+}
+
+/* ---------- 경로 안내 추가 스타일 ---------- */
+.map-panel{display:flex;flex-direction:column;gap:10px}
+.map-box{flex:1;height:auto;min-height:520px}
+.map-toolbar{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+  font-size:12px;color:var(--sub);padding:2px 6px 4px;
+}
+.traffic-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.traffic-legend span{display:inline-flex;align-items:center}
+.traffic-legend i{display:inline-block;width:18px;height:6px;border-radius:3px;margin-right:5px}
+.toggle{display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-weight:600}
+
+.hospital-card{cursor:pointer;justify-content:flex-start}
+.hospital-card .info{flex:1;min-width:0}
+.hospital-card.selected{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-tint)}
+.rank{
+  flex:none;width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--primary-tint);color:var(--primary-dark);font-weight:700;font-size:13px;
+}
+.hospital-card.selected .rank{background:var(--primary);color:#fff}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.badge.jam{background:var(--danger-tint);color:var(--danger)}
+
+.notice{
+  font-size:13px;line-height:1.65;color:#78350f;background:#FFFBEB;
+  border-left:3px solid #F59E0B;border-radius:0 8px 8px 0;padding:10px 14px;margin:0 0 14px;
+}
+.notice code{background:#fff;border:1px solid #F3E2B8;border-radius:5px;padding:1px 5px;font-size:12px}
+
+.pin{
+  background:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;
+  box-shadow:0 3px 10px rgba(11,25,48,.25);white-space:nowrap;border:2px solid;
+  font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+.pin-origin{border-color:#0B5FA5;color:#062E52}
+.pin-dest{border-color:#FF6B4A;color:#D9482B}
+
+.btn-primary:disabled{opacity:.7;cursor:wait}
+
+.origin-tools{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.btn-ghost{
+  border:1px solid var(--primary);background:#fff;color:var(--primary-dark);
+  border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:background .15s ease;
+}
+.btn-ghost:hover{background:var(--primary-tint)}
+.origin-hint{font-size:11.5px;color:var(--muted)}
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <circle cx="8" cy="20" r="2.6" fill="#7FA9CE"/>
+      <circle cx="14" cy="17" r="2.6" fill="#7FA9CE"/>
+      <circle cx="12" cy="23" r="2.6" fill="#7FA9CE"/>
+      <circle cx="19" cy="19" r="2.6" fill="#7FA9CE"/>
+      <circle cx="24" cy="7" r="3.6" fill="#FF6B4A"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-name">아웃라이어</span>
+      <span class="brand-sub">응급실 최적경로 안내</span>
+    </div>
+  </div>
+  <div class="clock" id="clock">—</div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <p class="hero-eyebrow">제15회 한국외대 총장배 이공계 학술제</p>
+    <h1>평균에서 벗어난 순간,<br>가장 먼저 알려드립니다</h1>
+    <p class="hero-lead">
+      서울시 응급실 통계와 실시간 교통 데이터를 결합해, 평소보다 혼잡한 병원을
+      먼저 걸러내고 지금 가장 합리적인 응급실과 경로를 안내합니다.
+    </p>
+  </div>
+</section>
+
+<main class="layout">
+
+  <section class="panel input-panel" aria-label="검색 조건">
+    <h2 class="panel-title">지금, 어디로 가야 할까요</h2>
+    <p class="lead">출발지·요일·시간을 고르면 구별 연령표준화 이용비(SIR)와 해당 시각의 실제 이용강도, 도로 교통을 함께 계산합니다.</p>
+
+    <form id="searchForm" class="search-form">
+      <div class="field">
+        <label for="gu">출발지</label>
+        <select id="gu" name="gu"></select>
+        <div class="origin-tools">
+          <button type="button" class="btn-ghost" id="hereBtn">📍 내 위치로</button>
+          <span class="origin-hint">지도를 클릭해 직접 찍을 수도 있어요</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="day">요일</label>
+        <select id="day" name="day"></select>
+      </div>
+      <div class="field">
+        <label for="hour">출발 시간</label>
+        <select id="hour" name="hour"></select>
+      </div>
+      <button type="submit" class="btn-primary" id="searchBtn">최적 응급실 찾기</button>
+    </form>
+
+    <div class="risk-legend">
+      <span><span class="dot dot-safe"></span>응급실 여유</span>
+      <span><span class="dot dot-warn"></span>혼잡</span>
+      <span><span class="dot dot-danger"></span>과부하</span>
+    </div>
+  </section>
+
+  <section class="panel map-panel" aria-label="지도">
+    <div id="map" class="map-box">
+      <div class="map-placeholder">
+        <p><strong>지도를 불러오는 중…</strong></p>
+      </div>
+    </div>
+    <div class="map-toolbar">
+      <div class="traffic-legend" aria-label="경로 교통 상황 범례">
+        <span><i style="background:#2E9E5B"></i>원활</span>
+        <span><i style="background:#E3B52C"></i>서행</span>
+        <span><i style="background:#EE8A2F"></i>지체</span>
+        <span><i style="background:#D6402F"></i>정체</span>
+      </div>
+      <label class="toggle"><input type="checkbox" id="trafficToggle"> 주변 도로 실시간 교통 보기</label>
+    </div>
+  </section>
+
+  <section class="panel result-panel" aria-label="추천 병원">
+    <h2 class="panel-title">추천 응급실</h2>
+    <p class="lead" id="resultLead">조건을 고르고 조회하면 여기에 순위가 표시됩니다. 카드를 누르면 그 병원까지의 경로가 지도에 나타나요.</p>
+    <div class="notice" id="notice" hidden></div>
+    <ul class="hospital-list" id="hospitalList"></ul>
+  </section>
+
+  <section class="panel chat-panel" aria-label="대화형 안내">
+    <h2 class="panel-title">물어보기</h2>
+    <div class="chat-log" id="chatLog">
+      <div class="chat-bubble bot">
+        안녕하세요. "지금 강남구인데 어디로 가야 해요?"처럼 물어보시면 지금 상황에 맞는 응급실과 경로를 안내해드려요.
+      </div>
+    </div>
+    <form id="chatForm" class="chat-form">
+      <input type="text" id="chatInput" placeholder="예: 지금 마포구인데 어디로 가야 해요?" autocomplete="off">
+      <button type="submit">보내기</button>
+    </form>
+  </section>
+
+</main>
+
+<footer class="footer">
+  제15회 한국외대 총장배 이공계 학술제 · 팀 아웃라이어 — 응급실 혼잡도: 구별 연령표준화 이용비(SIR) × 시간대·요일 실제 이용강도 (2024년 서울시 통계) · 교통: 카카오모빌리티 실측
+</footer>
+
+<script>window.__kakaoSdkStatus = "loading";</script>
+<script type="text/javascript"
+  src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=d1f15ff45959cdca145e6118c8b89769&autoload=false"
+  onload="window.__kakaoSdkStatus='loaded'"
+  onerror="window.__kakaoSdkStatus='failed'"></script>
+<script>
+/* ============================================================
+   아웃라이어 — 응급실 최적경로 안내 (프로토타입)
+
+   - 지도: 카카오맵 JavaScript SDK (JavaScript 키는 브라우저 노출이 정상)
+   - 경로: server.py 가 카카오모빌리티 길찾기 API를 대신 호출
+           → REST API 키는 secret.env 에만 있고 브라우저로 오지 않음
+   - 병원 이름·구·좌표는 실제 서울 주요 응급의료센터
+   - 시간대·요일 계수 = 2024년 서울시 응급실 실제 이용건수 기반 상대강도
+   - baseIndex = 해당 구의 연령표준화 응급실 이용비(SIR)를 0.30~0.85로 선형 변환한 값
+     · SIR = 관측 이용건수 ÷ 기대 이용건수 (간접 연령표준화, 10개 연령군)
+     · 자료: 서울 거주자 응급실 이용(2024) + 주민등록인구 구별·세별(2024 4분기)
+     · 1.0 = 서울 평균. 도봉구 1.409(최대) ~ 금천구 0.699(최소)
+   ============================================================ */
+
+const HOSPITALS = [
+  { name: "서울대학교병원 응급의료센터",   gu: "종로구",   lat: 37.5799, lng: 126.9997, baseIndex: 0.558 },  // SIR 1.032
+  { name: "삼성서울병원 응급실",           gu: "강남구",   lat: 37.4881, lng: 127.0857, baseIndex: 0.459 },  // SIR 0.904
+  { name: "서울아산병원 응급실",           gu: "송파구",   lat: 37.5270, lng: 127.1080, baseIndex: 0.374 },  // SIR 0.795
+  { name: "세브란스병원 응급진료센터",     gu: "서대문구", lat: 37.5620, lng: 126.9410, baseIndex: 0.343 },  // SIR 0.754
+  { name: "서울성모병원 응급의료센터",     gu: "서초구",   lat: 37.5015, lng: 127.0048, baseIndex: 0.44 },  // SIR 0.880
+  { name: "강남세브란스병원 응급실",       gu: "강남구",   lat: 37.4930, lng: 127.0455, baseIndex: 0.459 },  // SIR 0.904
+  { name: "고려대학교구로병원 응급실",     gu: "구로구",   lat: 37.4920, lng: 126.8845, baseIndex: 0.324 },  // SIR 0.730
+  { name: "한양대학교병원 응급실",         gu: "성동구",   lat: 37.5595, lng: 127.0435, baseIndex: 0.627 },  // SIR 1.121
+  { name: "이대목동병원 응급실",           gu: "양천구",   lat: 37.5370, lng: 126.8940, baseIndex: 0.338 },  // SIR 0.748
+  { name: "중앙대학교병원 응급실",         gu: "동작구",   lat: 37.5065, lng: 126.9605, baseIndex: 0.656 },  // SIR 1.158
+  { name: "건국대학교병원 응급실",         gu: "광진구",   lat: 37.5405, lng: 127.0725, baseIndex: 0.498 },  // SIR 0.954
+  { name: "경희대학교병원 응급실",         gu: "동대문구", lat: 37.5940, lng: 127.0515, baseIndex: 0.615 },  // SIR 1.105
+  { name: "강북삼성병원 응급실",           gu: "종로구",   lat: 37.5680, lng: 126.9685, baseIndex: 0.558 },  // SIR 1.032
+  { name: "순천향대서울병원 응급실",       gu: "용산구",   lat: 37.5345, lng: 126.9990, baseIndex: 0.639 },  // SIR 1.136
+  { name: "서울의료원 응급의료센터",       gu: "중랑구",   lat: 37.6130, lng: 127.0980, baseIndex: 0.57 },  // SIR 1.047
+];
+
+// 구별 대략적 중심 좌표 (출발지)
+const GU_COORDS = {
+  "강남구": [37.5172, 127.0473], "강동구": [37.5301, 127.1238],
+  "강북구": [37.6396, 127.0257], "강서구": [37.5509, 126.8495],
+  "관악구": [37.4784, 126.9516], "광진구": [37.5384, 127.0822],
+  "구로구": [37.4954, 126.8874], "금천구": [37.4600, 126.9000],
+  "노원구": [37.6542, 127.0568], "도봉구": [37.6688, 127.0471],
+  "동대문구": [37.5744, 127.0396], "동작구": [37.5124, 126.9393],
+  "마포구": [37.5663, 126.9019], "서대문구": [37.5791, 126.9368],
+  "서초구": [37.4837, 127.0324], "성동구": [37.5633, 127.0371],
+  "성북구": [37.5894, 127.0167], "송파구": [37.5145, 127.1059],
+  "양천구": [37.5170, 126.8665], "영등포구": [37.5264, 126.8963],
+  "용산구": [37.5326, 126.9905], "은평구": [37.6027, 126.9291],
+  "종로구": [37.5735, 126.9790], "중구": [37.5641, 126.9979],
+  "중랑구": [37.6063, 127.0928],
+};
+
+const DAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+const HERE = "__here__";
+const PIN = "__pin__";   // 지도를 클릭해 직접 지정한 지점
+
+// 카카오모빌리티 traffic_state → 색
+const TRAFFIC = {
+  4: "#2E9E5B", // 원활
+  3: "#E3B52C", // 서행
+  2: "#EE8A2F", // 지체
+  1: "#D6402F", // 정체
+  6: "#7A1F1F", // 사고·통제
+  0: "#7C93B5", // 정보 없음
+};
+
+const CANDIDATES = 5; // 길찾기를 실제로 호출할 후보 병원 수 (API 호출량 절약)
+
+let map = null;
+let baseMarkers = [];
+let routeLayers = [];
+let hereCoords = null;
+let pinCoords = null;
+let lastResults = [];
+let lastOrigin = null;
+let selectedIdx = 0;
+
+/* ---------- 유틸 ---------- */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function shortName(name) {
+  return name.replace(/\s*(응급의료센터|응급진료센터|응급실)$/, "");
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── 시간대·요일 위험계수 (2024년 서울시 응급실 실제 이용건수 기반) ──
+// 출처: 응급실 내원시간 현황(3시간 블록 8구간), 요일별 이용 현황
+// 값 = 해당 구간의 시간당 이용건수 ÷ 전체 평균 (1.0 = 평균 수준)
+const HOUR_INDEX = [0.698, 0.698, 0.698, 0.476, 0.476, 0.476, 0.693, 0.693, 0.693, 1.334, 1.334, 1.334, 1.254, 1.254, 1.254, 1.204, 1.204, 1.204, 1.216, 1.216, 1.216, 1.123, 1.123, 1.123];
+const DAY_INDEX = {
+  "일요일": 1.098,
+  "월요일": 1.082,
+  "화요일": 0.966,
+  "수요일": 0.936,
+  "목요일": 0.94,
+  "금요일": 0.966,
+  "토요일": 1.011,
+};
+
+function hourFactor(hour) {
+  return HOUR_INDEX[Number(hour)] ?? 1;
+}
+
+function dayFactor(day) {
+  return DAY_INDEX[day] ?? 1;
+}
+
+function riskLevel(score) {
+  if (score < 0.35) return { level: "safe", label: "여유" };
+  if (score < 0.6) return { level: "warn", label: "혼잡" };
+  return { level: "danger", label: "과부하" };
+}
+
+function estimateEtaMinutes(distanceKm, hour) {
+  const speedKmh = hourFactor(hour) > 1.1 ? 18 : 28;
+  return Math.max(1, Math.round((distanceKm / speedKmh) * 60));
+}
+
+// 응급실 혼잡도 60% + 소요시간 40% (가중치는 팀 논의 후 조정)
+function rankScore(h) {
+  return h.risk * 0.6 + (h.eta / 60) * 0.4;
+}
+
+// 선택한 요일·시간이 '지금'이면 null(실시간), 아니면 다음 해당 시각(YYYYMMDDHHmm)
+function departureParam(day, hour) {
+  const now = new Date();
+  const h = Number(hour);
+  const diff = (DAYS.indexOf(day) - now.getDay() + 7) % 7;
+  if (diff === 0 && now.getHours() === h) return null;
+
+  const t = new Date(now);
+  t.setDate(now.getDate() + diff);
+  t.setHours(h, 0, 0, 0);
+  if (t <= now) t.setDate(t.getDate() + 7);
+
+  const p = (n) => String(n).padStart(2, "0");
+  return `${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}${p(t.getHours())}00`;
+}
+
+function sourceLabel(src) {
+  return {
+    realtime: "실시간 교통 반영",
+    future: "해당 시각 예측 교통 반영",
+    "realtime-fallback": "실시간 교통 반영",
+    estimate: "직선거리 추정",
+  }[src] || "";
+}
+
+/* ---------- 출발지 ---------- */
+function resolveOrigin(guValue) {
+  if (guValue === PIN && pinCoords) return Promise.resolve(pinCoords);
+  if (guValue !== HERE) {
+    const [lat, lng] = GU_COORDS[guValue];
+    return Promise.resolve({ label: guValue, lat, lng });
+  }
+  if (hereCoords) return Promise.resolve(hereCoords);
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        hereCoords = { label: "현재 위치", lat: p.coords.latitude, lng: p.coords.longitude };
+        resolve(hereCoords);
+      },
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  });
+}
+
+// 지도 클릭으로 찍은 지점을 출발지 목록에 넣고 선택
+function setPinOrigin(lat, lng) {
+  pinCoords = { label: "지도에서 지정한 지점", lat, lng };
+  const sel = document.getElementById("gu");
+  let opt = sel.querySelector(`option[value="${PIN}"]`);
+  if (!opt) {
+    opt = document.createElement("option");
+    opt.value = PIN;
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  opt.textContent = "📌 지도에서 지정한 지점";
+  sel.value = PIN;
+  runSearch();
+}
+
+/* ---------- 길찾기 (server.py 경유) ---------- */
+async function fetchRoute(origin, h, departure) {
+  const params = new URLSearchParams({
+    origin: `${origin.lng},${origin.lat}`,
+    destination: `${h.lng},${h.lat}`,
+  });
+  if (departure) params.set("departure", departure);
+  try {
+    const res = await fetch(`/api/directions?${params}`);
+    if (res.status === 404) return { offline: true }; // server.py 가 아닌 서버로 연 경우
+    const data = await res.json();
+    if (data.error) return { error: data.error + (data.detail ? ` — ${data.detail}` : "") };
+    return data;
+  } catch (e) {
+    return { offline: true };
+  }
+}
+
+async function computeRecommendations(origin, day, hour) {
+  const tf = hourFactor(hour) * dayFactor(day);   // 시간대 × 요일 계수
+
+  // 1) 직선거리 추정으로 1차 정렬 → 상위 후보만 실제 길찾기
+  const base = HOSPITALS.map((h) => {
+    const distanceKm = +(haversineKm(origin.lat, origin.lng, h.lat, h.lng) * 1.3).toFixed(1);
+    const risk = Math.min(1, h.baseIndex * tf);
+    return { ...h, distanceKm, risk, eta: estimateEtaMinutes(distanceKm, hour), roads: null, source: "estimate", jamKm: 0 };
+  }).sort((a, b) => rankScore(a) - rankScore(b));
+
+  const departure = departureParam(day, hour);
+  const cands = base.slice(0, CANDIDATES);
+  const routes = await Promise.all(cands.map((h) => fetchRoute(origin, h, departure)));
+
+  // 2) 실제 경로 결과로 거리·시간 교체
+  let okCount = 0;
+  routes.forEach((r, i) => {
+    if (!r || r.offline || r.error) return;
+    okCount++;
+    const h = cands[i];
+    h.distanceKm = +(r.distance / 1000).toFixed(1);
+    h.eta = Math.max(1, Math.round(r.duration / 60));
+    h.roads = r.roads;
+    h.source = r.mode;
+    h.jamKm = +(r.roads.filter((rd) => rd.state === 1 || rd.state === 2)
+      .reduce((s, rd) => s + (rd.d || 0), 0) / 1000).toFixed(1);
+  });
+
+  let notice = null;
+  if (okCount === 0) {
+    if (routes.some((r) => r && r.offline)) {
+      notice = `실제 경로 서버에 연결되지 않아 <b>직선거리 추정치</b>로 표시합니다.<br>
+        터미널에서 <code>python3 server.py</code> 로 실행한 뒤 <code>http://localhost:3000</code> 으로 열어주세요.`;
+    } else {
+      const err = routes.find((r) => r && r.error);
+      notice = `길찾기 API 오류로 추정치로 표시합니다.<br><small>${escapeHtml(err ? err.error : "알 수 없는 오류")}</small>`;
+    }
+  }
+
+  // 3) 실제 소요시간 기준 재정렬
+  const ranked = cands.sort((a, b) => rankScore(a) - rankScore(b)).slice(0, 3);
+  return { ranked, notice, departure };
+}
+
+/* ---------- 지도 ---------- */
+function showMapError(title, detail) {
+  document.getElementById("map").innerHTML = `
+    <div class="map-placeholder">
+      <p><strong>${title}</strong></p>
+      <p class="map-placeholder-sub">${detail}</p>
+    </div>`;
+}
+
+function initKakaoMap() {
+  if (location.protocol === "file:") {
+    showMapError("로컬 서버로 열어야 합니다",
+      `지금 주소가 <code>file://</code> 로 시작합니다.<br>
+       이 폴더에서 <code>python3 server.py</code> 실행 후<br>
+       <code>http://localhost:3000</code> 으로 열어주세요.`);
+    return;
+  }
+  if (window.__kakaoSdkStatus === "failed") {
+    showMapError("지도 SDK를 내려받지 못했습니다",
+      `<code>dapi.kakao.com</code> 에 연결하지 못했습니다. 네트워크·광고 차단 확장프로그램을 확인하세요.`);
+    return;
+  }
+  if (typeof kakao === "undefined" || !kakao.maps) {
+    showMapError("카카오맵 인증에 실패했습니다",
+      `카카오 개발자 콘솔에서 <b>카카오맵 사용 설정 ON</b>, <b>JavaScript SDK 도메인</b>에
+       <code>${location.origin}</code> 등록 여부를 확인하세요.`);
+    return;
+  }
+
+  kakao.maps.load(() => {
+    const box = document.getElementById("map");
+    box.innerHTML = "";
+    map = new kakao.maps.Map(box, { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 8 });
+
+    HOSPITALS.forEach((h) => {
+      const marker = new kakao.maps.Marker({ position: new kakao.maps.LatLng(h.lat, h.lng), title: h.name });
+      marker.setMap(map);
+      baseMarkers.push(marker);
+    });
+
+    // 컨테이너 크기가 바뀌면 지도 다시 그리기 (지도 절반이 회색으로 비는 문제 방지)
+    if (window.ResizeObserver) new ResizeObserver(() => map.relayout()).observe(box);
+
+    document.getElementById("trafficToggle").addEventListener("change", (e) => {
+      if (e.target.checked) map.addOverlayMapTypeId(kakao.maps.MapTypeId.TRAFFIC);
+      else map.removeOverlayMapTypeId(kakao.maps.MapTypeId.TRAFFIC);
+    });
+
+    // 지도를 클릭하면 그 지점이 출발지가 됨
+    kakao.maps.event.addListener(map, "click", (e) => {
+      const ll = e.latLng;
+      setPinOrigin(ll.getLat(), ll.getLng());
+    });
+
+    // 첫 화면에서 바로 결과 보여주기
+    runSearch();
+  });
+}
+
+function clearRoute() {
+  routeLayers.forEach((l) => l.setMap(null));
+  routeLayers = [];
+}
+
+function drawRoute(origin, h) {
+  if (!map) return;
+  clearRoute();
+  baseMarkers.forEach((m) => m.setMap(null));
+
+  const bounds = new kakao.maps.LatLngBounds();
+  const o = new kakao.maps.LatLng(origin.lat, origin.lng);
+  const d = new kakao.maps.LatLng(h.lat, h.lng);
+  bounds.extend(o);
+  bounds.extend(d);
+
+  if (h.roads && h.roads.length) {
+    const segments = h.roads.map((r) => {
+      const path = [];
+      for (let i = 0; i + 1 < r.v.length; i += 2) {
+        const ll = new kakao.maps.LatLng(r.v[i + 1], r.v[i]);
+        path.push(ll);
+        bounds.extend(ll);
+      }
+      return { path, color: TRAFFIC[r.state] || TRAFFIC[0] };
+    }).filter((s) => s.path.length >= 2);
+
+    // 흰 테두리 먼저, 그 위에 교통 색
+    segments.forEach((s) => routeLayers.push(new kakao.maps.Polyline({
+      map, path: s.path, strokeWeight: 11, strokeColor: "#FFFFFF", strokeOpacity: 0.95,
+    })));
+    segments.forEach((s) => routeLayers.push(new kakao.maps.Polyline({
+      map, path: s.path, strokeWeight: 6, strokeColor: s.color, strokeOpacity: 1,
+    })));
+  } else {
+    routeLayers.push(new kakao.maps.Polyline({
+      map, path: [o, d], strokeWeight: 4, strokeColor: "#0B5FA5", strokeOpacity: 0.8, strokeStyle: "shortdash",
+    }));
+  }
+
+  routeLayers.push(new kakao.maps.CustomOverlay({
+    map, position: o, yAnchor: 1.3,
+    content: `<div class="pin pin-origin">출발 · ${escapeHtml(origin.label)}</div>`,
+  }));
+  routeLayers.push(new kakao.maps.CustomOverlay({
+    map, position: d, yAnchor: 1.3,
+    content: `<div class="pin pin-dest">${escapeHtml(shortName(h.name))} · ${h.eta}분</div>`,
+  }));
+
+  map.setBounds(bounds, 60, 40, 40, 40);
+}
+
+/* ---------- 렌더링 ---------- */
+function showNotice(html) {
+  const el = document.getElementById("notice");
+  if (!html) { el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  el.innerHTML = html;
+}
+
+function renderHospitals(list, origin, day, hour, departure) {
+  const ul = document.getElementById("hospitalList");
+  const when = departure ? `${day} ${hour}시 출발 기준` : "지금 출발 기준";
+  document.getElementById("resultLead").textContent =
+    `${origin.label} 출발 · ${when} — 응급실 혼잡도와 도로 교통을 함께 계산한 상위 3곳입니다.`;
+
+  ul.innerHTML = "";
+  list.forEach((h, i) => {
+    const { level, label } = riskLevel(h.risk);
+    const jam = h.jamKm > 0 ? `<span class="badge jam">정체·지체 ${h.jamKm}km</span>` : "";
+    const li = document.createElement("li");
+    li.className = `hospital-card${i === selectedIdx ? " selected" : ""}`;
+    li.dataset.idx = i;
+    li.innerHTML = `
+      <div class="rank">${i + 1}</div>
+      <div class="info">
+        <div class="hospital-name">${escapeHtml(h.name)}</div>
+        <div class="hospital-sub">${escapeHtml(h.gu)} · ${h.distanceKm}km · ${sourceLabel(h.source)}</div>
+        <div class="badges"><span class="badge ${level}">응급실 ${label}</span>${jam}</div>
+      </div>
+      <div class="hospital-eta">${h.eta}<small>분</small></div>`;
+    li.addEventListener("click", () => selectRoute(i));
+    ul.appendChild(li);
+  });
+}
+
+function selectRoute(i) {
+  selectedIdx = i;
+  document.querySelectorAll(".hospital-card").forEach((el) =>
+    el.classList.toggle("selected", Number(el.dataset.idx) === i));
+  if (lastResults[i] && lastOrigin) drawRoute(lastOrigin, lastResults[i]);
+}
+
+async function runSearch(overrides = {}) {
+  const gu = overrides.gu || document.getElementById("gu").value;
+  const day = overrides.day || document.getElementById("day").value;
+  const hour = overrides.hour ?? document.getElementById("hour").value;
+  const btn = document.getElementById("searchBtn");
+
+  btn.disabled = true;
+  btn.textContent = "경로 계산 중…";
+  try {
+    const origin = await resolveOrigin(gu);
+    if (!origin) {
+      showNotice("현재 위치를 가져오지 못했습니다. 브라우저 위치 권한을 허용하거나 구를 선택해 주세요.");
+      return null;
+    }
+    const { ranked, notice, departure } = await computeRecommendations(origin, day, hour);
+    lastResults = ranked;
+    lastOrigin = origin;
+    selectedIdx = 0;
+    renderHospitals(ranked, origin, day, hour, departure);
+    showNotice(notice);
+    if (ranked[0]) drawRoute(origin, ranked[0]);
+    return { origin, ranked };
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "최적 응급실 찾기";
+  }
+}
+
+/* ---------- 챗봇형 응답 ---------- */
+function addChatBubble(text, who) {
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = `chat-bubble ${who}`;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function respondToChat(message) {
+  const gu = Object.keys(GU_COORDS).find((g) => message.includes(g));
+  const overrides = {};
+  if (gu) {
+    overrides.gu = gu;
+    document.getElementById("gu").value = gu;
+  }
+  if (message.includes("지금")) {
+    const now = new Date();
+    overrides.day = DAYS[now.getDay()];
+    overrides.hour = String(now.getHours());
+    document.getElementById("day").value = overrides.day;
+    document.getElementById("hour").value = overrides.hour;
+  }
+
+  const result = await runSearch(overrides);
+  if (!result || !result.ranked[0]) {
+    addChatBubble("출발지를 확인하지 못했어요. 구 이름을 넣어서 다시 물어봐 주세요.", "bot");
+    return;
+  }
+  const top = result.ranked[0];
+  const { label } = riskLevel(top.risk);
+  const jam = top.jamKm > 0 ? ` 가는 길에 정체·지체 구간이 약 ${top.jamKm}km 있어요.` : " 가는 길은 비교적 원활해요.";
+  addChatBubble(
+    `${result.origin.label} 기준으로는 ${shortName(top.name)}이(가) 가장 나아요. 약 ${top.distanceKm}km, ${top.eta}분 걸리고 응급실은 "${label}" 상태예요.${top.roads ? jam : ""} 지도에 경로를 표시했어요.`,
+    "bot"
+  );
+}
+
+/* ---------- 초기화 ---------- */
+function fillSelects() {
+  const guSel = document.getElementById("gu");
+  guSel.innerHTML = `<option value="${HERE}">📍 현재 위치</option>` +
+    Object.keys(GU_COORDS).sort((a, b) => a.localeCompare(b, "ko"))
+      .map((g) => `<option value="${g}">${g}</option>`).join("");
+  guSel.value = "강남구";
+
+  const now = new Date();
+  document.getElementById("day").innerHTML = DAYS.map((d) => `<option>${d}</option>`).join("");
+  document.getElementById("day").value = DAYS[now.getDay()];
+
+  document.getElementById("hour").innerHTML = Array.from({ length: 24 }, (_, h) =>
+    `<option value="${h}">${String(h).padStart(2, "0")}시</option>`).join("");
+  document.getElementById("hour").value = String(now.getHours());
+}
+
+function tickClock() {
+  const now = new Date();
+  const d = ["일", "월", "화", "수", "목", "금", "토"][now.getDay()];
+  document.getElementById("clock").textContent =
+    `${now.getMonth() + 1}월 ${now.getDate()}일(${d}) ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  fillSelects();
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  if (window.__kakaoSdkStatus === "loading") setTimeout(initKakaoMap, 800);
+  else initKakaoMap();
+
+  document.getElementById("hereBtn").addEventListener("click", () => {
+    document.getElementById("gu").value = HERE;
+    runSearch();
+  });
+
+  document.getElementById("searchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    runSearch();
+  });
+
+  document.getElementById("chatForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("chatInput");
+    const msg = input.value.trim();
+    if (!msg) return;
+    addChatBubble(msg, "user");
+    input.value = "";
+    respondToChat(msg);
+  });
+});
+
+</script>
+</body>
+</html>
