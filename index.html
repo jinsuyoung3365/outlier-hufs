@@ -295,7 +295,7 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
 
   <section class="panel input-panel" aria-label="검색 조건">
     <h2 class="panel-title">지금, 어디로 가야 할까요</h2>
-    <p class="lead">출발지·요일·시간을 고르면 구별 연령표준화 이용비(SIR)와 해당 시각의 실제 이용강도, 도로 교통을 함께 계산합니다.</p>
+    <p class="lead">출발지·요일·시간을 고르면 실시간 가용병상과 구별 표준화이용비(SIR), 해당 시각 이용강도, 도로 교통을 함께 계산합니다.</p>
 
     <form id="searchForm" class="search-form">
       <div class="field">
@@ -364,7 +364,7 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
 </main>
 
 <footer class="footer">
-  제15회 한국외대 총장배 이공계 학술제 · 팀 아웃라이어 — 응급실 혼잡도: 구별 연령표준화 이용비(SIR) × 시간대·요일 실제 이용강도 (2024년 서울시 통계) · 교통: 카카오모빌리티 실측
+  제15회 한국외대 총장배 이공계 학술제 · 팀 아웃라이어 — 응급실 혼잡도: 실시간 가용병상(국립중앙의료원) × 구별 연령표준화 이용비(SIR) × 시간대·요일 이용강도(2024) · 교통: 카카오모빌리티 실측 · 교통: 카카오모빌리티 실측
 </footer>
 
 <script>window.__kakaoSdkStatus = "loading";</script>
@@ -381,6 +381,9 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
            → REST API 키는 secret.env 에만 있고 브라우저로 오지 않음
    - 병원 이름·구·좌표는 실제 서울 주요 응급의료센터
    - 시간대·요일 계수 = 2024년 서울시 응급실 실제 이용건수 기반 상대강도
+   - 실시간 병상 계수 = 국립중앙의료원 응급실 실시간 가용병상 API
+     · 점유율 0%일 때 0.7, 100%일 때 1.3 (1.0 중립)
+     · '지금 출발'일 때만 반영, 미래 시각 조회에는 적용하지 않음
    - baseIndex = 해당 구의 연령표준화 응급실 이용비(SIR)를 0.30~0.85로 선형 변환한 값
      · SIR = 관측 이용건수 ÷ 기대 이용건수 (간접 연령표준화, 10개 연령군)
      · 자료: 서울 거주자 응급실 이용(2024) + 주민등록인구 구별·세별(2024 4분기)
@@ -388,21 +391,21 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
    ============================================================ */
 
 const HOSPITALS = [
-  { name: "서울대학교병원 응급의료센터",   gu: "종로구",   lat: 37.5799, lng: 126.9997, baseIndex: 0.558 },  // SIR 1.032
-  { name: "삼성서울병원 응급실",           gu: "강남구",   lat: 37.4881, lng: 127.0857, baseIndex: 0.459 },  // SIR 0.904
-  { name: "서울아산병원 응급실",           gu: "송파구",   lat: 37.5270, lng: 127.1080, baseIndex: 0.374 },  // SIR 0.795
-  { name: "세브란스병원 응급진료센터",     gu: "서대문구", lat: 37.5620, lng: 126.9410, baseIndex: 0.343 },  // SIR 0.754
-  { name: "서울성모병원 응급의료센터",     gu: "서초구",   lat: 37.5015, lng: 127.0048, baseIndex: 0.44 },  // SIR 0.880
-  { name: "강남세브란스병원 응급실",       gu: "강남구",   lat: 37.4930, lng: 127.0455, baseIndex: 0.459 },  // SIR 0.904
-  { name: "고려대학교구로병원 응급실",     gu: "구로구",   lat: 37.4920, lng: 126.8845, baseIndex: 0.324 },  // SIR 0.730
-  { name: "한양대학교병원 응급실",         gu: "성동구",   lat: 37.5595, lng: 127.0435, baseIndex: 0.627 },  // SIR 1.121
-  { name: "이대목동병원 응급실",           gu: "양천구",   lat: 37.5370, lng: 126.8940, baseIndex: 0.338 },  // SIR 0.748
-  { name: "중앙대학교병원 응급실",         gu: "동작구",   lat: 37.5065, lng: 126.9605, baseIndex: 0.656 },  // SIR 1.158
-  { name: "건국대학교병원 응급실",         gu: "광진구",   lat: 37.5405, lng: 127.0725, baseIndex: 0.498 },  // SIR 0.954
-  { name: "경희대학교병원 응급실",         gu: "동대문구", lat: 37.5940, lng: 127.0515, baseIndex: 0.615 },  // SIR 1.105
-  { name: "강북삼성병원 응급실",           gu: "종로구",   lat: 37.5680, lng: 126.9685, baseIndex: 0.558 },  // SIR 1.032
-  { name: "순천향대서울병원 응급실",       gu: "용산구",   lat: 37.5345, lng: 126.9990, baseIndex: 0.639 },  // SIR 1.136
-  { name: "서울의료원 응급의료센터",       gu: "중랑구",   lat: 37.6130, lng: 127.0980, baseIndex: 0.57 },  // SIR 1.047
+  { name: "서울대학교병원 응급의료센터",   gu: "종로구",   lat: 37.5799, lng: 126.9997, baseIndex: 0.558, match: ["서울대학교병원"] },  // SIR 1.032
+  { name: "삼성서울병원 응급실",           gu: "강남구",   lat: 37.4881, lng: 127.0857, baseIndex: 0.459, match: ["삼성서울병원"] },  // SIR 0.904
+  { name: "서울아산병원 응급실",           gu: "송파구",   lat: 37.5270, lng: 127.1080, baseIndex: 0.374, match: ["서울아산병원"] },  // SIR 0.795
+  { name: "세브란스병원 응급진료센터",     gu: "서대문구", lat: 37.5620, lng: 126.9410, baseIndex: 0.343, match: ["세브란스병원"] },  // SIR 0.754
+  { name: "서울성모병원 응급의료센터",     gu: "서초구",   lat: 37.5015, lng: 127.0048, baseIndex: 0.44, match: ["서울성모병원"] },  // SIR 0.880
+  { name: "강남세브란스병원 응급실",       gu: "강남구",   lat: 37.4930, lng: 127.0455, baseIndex: 0.459, match: ["강남세브란스"] },  // SIR 0.904
+  { name: "고려대학교구로병원 응급실",     gu: "구로구",   lat: 37.4920, lng: 126.8845, baseIndex: 0.324, match: ["구로병원"] },  // SIR 0.730
+  { name: "한양대학교병원 응급실",         gu: "성동구",   lat: 37.5595, lng: 127.0435, baseIndex: 0.627, match: ["한양대학교병원"] },  // SIR 1.121
+  { name: "이대목동병원 응급실",           gu: "양천구",   lat: 37.5370, lng: 126.8940, baseIndex: 0.338, match: ["목동병원"] },  // SIR 0.748
+  { name: "중앙대학교병원 응급실",         gu: "동작구",   lat: 37.5065, lng: 126.9605, baseIndex: 0.656, match: ["중앙대학교병원"] },  // SIR 1.158
+  { name: "건국대학교병원 응급실",         gu: "광진구",   lat: 37.5405, lng: 127.0725, baseIndex: 0.498, match: ["건국대학교병원"] },  // SIR 0.954
+  { name: "경희대학교병원 응급실",         gu: "동대문구", lat: 37.5940, lng: 127.0515, baseIndex: 0.615, match: ["경희대학교병원"] },  // SIR 1.105
+  { name: "강북삼성병원 응급실",           gu: "종로구",   lat: 37.5680, lng: 126.9685, baseIndex: 0.558, match: ["강북삼성병원"] },  // SIR 1.032
+  { name: "순천향대서울병원 응급실",       gu: "용산구",   lat: 37.5345, lng: 126.9990, baseIndex: 0.639, match: ["순천향", "서울병원"] },  // SIR 1.136
+  { name: "서울의료원 응급의료센터",       gu: "중랑구",   lat: 37.6130, lng: 127.0980, baseIndex: 0.57, match: ["서울의료원"] },  // SIR 1.047
 ];
 
 // 구별 대략적 중심 좌표 (출발지)
@@ -564,6 +567,39 @@ function setPinOrigin(lat, lng) {
   runSearch();
 }
 
+/* ---------- 실시간 가용병상 (server.py 경유) ---------- */
+// 국립중앙의료원 응급실 실시간 가용병상정보 조회 API
+let bedCache = null;
+
+async function fetchBeds() {
+  try {
+    const res = await fetch("/api/beds");
+    if (!res.ok) return { error: "병상 정보 서버 응답 오류" };
+    return await res.json();
+  } catch (e) {
+    return { offline: true };
+  }
+}
+
+// 병원명 매칭 — API의 dutyName에 키워드가 모두 포함되는 항목을 찾는다
+function findBed(items, h) {
+  if (!items || !h.match) return null;
+  return items.find((it) => h.match.every((k) => it.name.includes(k))) || null;
+}
+
+// 병상 점유율 → 위험 계수. 0.7(여유) ~ 1.3(포화), 1.0이 중립
+function bedFactor(bed) {
+  if (!bed || bed.available == null || !bed.total || bed.total <= 0) return 1;
+  const occ = Math.min(1, Math.max(0, 1 - bed.available / bed.total));
+  return 0.7 + 0.6 * occ;
+}
+
+function bedUpdatedLabel(raw) {
+  // hvidate: YYYYMMDDHHmmss
+  if (!raw || raw.length < 12) return "";
+  return `${raw.slice(8, 10)}:${raw.slice(10, 12)} 기준`;
+}
+
 /* ---------- 길찾기 (server.py 경유) ---------- */
 async function fetchRoute(origin, h, departure) {
   const params = new URLSearchParams({
@@ -585,11 +621,24 @@ async function fetchRoute(origin, h, departure) {
 async function computeRecommendations(origin, day, hour) {
   const tf = hourFactor(hour) * dayFactor(day);   // 시간대 × 요일 계수
 
+  // 실시간 가용병상 — 지금 출발일 때만 의미가 있으므로 그때만 조회
+  const isNow = departureParam(day, hour) === null;
+  let beds = null, bedNotice = null;
+  if (isNow) {
+    const r = await fetchBeds();
+    if (r && r.items) beds = r.items;
+    else if (r && r.error) bedNotice = r.error;
+  }
+
   // 1) 직선거리 추정으로 1차 정렬 → 상위 후보만 실제 길찾기
   const base = HOSPITALS.map((h) => {
     const distanceKm = +(haversineKm(origin.lat, origin.lng, h.lat, h.lng) * 1.3).toFixed(1);
-    const risk = Math.min(1, h.baseIndex * tf);
-    return { ...h, distanceKm, risk, eta: estimateEtaMinutes(distanceKm, hour), roads: null, source: "estimate", jamKm: 0 };
+    const bed = findBed(beds, h);
+    const risk = Math.min(1, h.baseIndex * tf * bedFactor(bed));
+    return {
+      ...h, distanceKm, risk, bed,
+      eta: estimateEtaMinutes(distanceKm, hour), roads: null, source: "estimate", jamKm: 0,
+    };
   }).sort((a, b) => rankScore(a) - rankScore(b));
 
   const departure = departureParam(day, hour);
@@ -610,7 +659,7 @@ async function computeRecommendations(origin, day, hour) {
       .reduce((s, rd) => s + (rd.d || 0), 0) / 1000).toFixed(1);
   });
 
-  let notice = null;
+  let notice = bedNotice ? `실시간 병상 정보를 불러오지 못해 통계 기반 값만 반영했습니다.<br><small>${escapeHtml(bedNotice)}</small>` : null;
   if (okCount === 0) {
     if (routes.some((r) => r && r.offline)) {
       notice = `실제 경로 서버에 연결되지 않아 <b>직선거리 추정치</b>로 표시합니다.<br>
@@ -623,7 +672,7 @@ async function computeRecommendations(origin, day, hour) {
 
   // 3) 실제 소요시간 기준 재정렬
   const ranked = cands.sort((a, b) => rankScore(a) - rankScore(b)).slice(0, 3);
-  return { ranked, notice, departure };
+  return { ranked, notice, departure, bedsUsed: !!beds };
 }
 
 /* ---------- 지도 ---------- */
@@ -745,16 +794,25 @@ function showNotice(html) {
   el.innerHTML = html;
 }
 
-function renderHospitals(list, origin, day, hour, departure) {
+function renderHospitals(list, origin, day, hour, departure, bedsUsed) {
   const ul = document.getElementById("hospitalList");
   const when = departure ? `${day} ${hour}시 출발 기준` : "지금 출발 기준";
+  const basis = bedsUsed
+    ? "실시간 가용병상 · 구별 표준화이용비(SIR) · 시간대 이용강도 · 도로 교통"
+    : "구별 표준화이용비(SIR) · 시간대 이용강도 · 도로 교통";
   document.getElementById("resultLead").textContent =
-    `${origin.label} 출발 · ${when} — 응급실 혼잡도와 도로 교통을 함께 계산한 상위 3곳입니다.`;
+    `${origin.label} 출발 · ${when} — ${basis}을 함께 계산한 상위 3곳입니다.`;
 
   ul.innerHTML = "";
   list.forEach((h, i) => {
     const { level, label } = riskLevel(h.risk);
     const jam = h.jamKm > 0 ? `<span class="badge jam">정체·지체 ${h.jamKm}km</span>` : "";
+    let bedTag = "";
+    if (h.bed && h.bed.available != null) {
+      const a = h.bed.available, t = h.bed.total;
+      const cls = a <= 0 ? "danger" : (t && a / t < 0.2 ? "warn" : "safe");
+      bedTag = `<span class="badge ${cls}">실시간 병상 ${a}${t ? ` / ${t}` : ""}</span>`;
+    }
     const li = document.createElement("li");
     li.className = `hospital-card${i === selectedIdx ? " selected" : ""}`;
     li.dataset.idx = i;
@@ -762,8 +820,8 @@ function renderHospitals(list, origin, day, hour, departure) {
       <div class="rank">${i + 1}</div>
       <div class="info">
         <div class="hospital-name">${escapeHtml(h.name)}</div>
-        <div class="hospital-sub">${escapeHtml(h.gu)} · ${h.distanceKm}km · ${sourceLabel(h.source)}</div>
-        <div class="badges"><span class="badge ${level}">응급실 ${label}</span>${jam}</div>
+        <div class="hospital-sub">${escapeHtml(h.gu)} · ${h.distanceKm}km · ${sourceLabel(h.source)}${h.bed && h.bed.updated ? ` · 병상 ${bedUpdatedLabel(h.bed.updated)}` : ""}</div>
+        <div class="badges"><span class="badge ${level}">응급실 ${label}</span>${bedTag}${jam}</div>
       </div>
       <div class="hospital-eta">${h.eta}<small>분</small></div>`;
     li.addEventListener("click", () => selectRoute(i));
@@ -792,11 +850,11 @@ async function runSearch(overrides = {}) {
       showNotice("현재 위치를 가져오지 못했습니다. 브라우저 위치 권한을 허용하거나 구를 선택해 주세요.");
       return null;
     }
-    const { ranked, notice, departure } = await computeRecommendations(origin, day, hour);
+    const { ranked, notice, departure, bedsUsed } = await computeRecommendations(origin, day, hour);
     lastResults = ranked;
     lastOrigin = origin;
     selectedIdx = 0;
-    renderHospitals(ranked, origin, day, hour, departure);
+    renderHospitals(ranked, origin, day, hour, departure, bedsUsed);
     showNotice(notice);
     if (ranked[0]) drawRoute(origin, ranked[0]);
     return { origin, ranked };
@@ -839,8 +897,10 @@ async function respondToChat(message) {
   const top = result.ranked[0];
   const { label } = riskLevel(top.risk);
   const jam = top.jamKm > 0 ? ` 가는 길에 정체·지체 구간이 약 ${top.jamKm}km 있어요.` : " 가는 길은 비교적 원활해요.";
+  const bedMsg = (top.bed && top.bed.available != null)
+    ? ` 현재 응급실 일반병상은 ${top.bed.available}${top.bed.total ? `/${top.bed.total}` : ""}개 사용 가능해요.` : "";
   addChatBubble(
-    `${result.origin.label} 기준으로는 ${shortName(top.name)}이(가) 가장 나아요. 약 ${top.distanceKm}km, ${top.eta}분 걸리고 응급실은 "${label}" 상태예요.${top.roads ? jam : ""} 지도에 경로를 표시했어요.`,
+    `${result.origin.label} 기준으로는 ${shortName(top.name)}이(가) 가장 나아요. 약 ${top.distanceKm}km, ${top.eta}분 걸리고 응급실은 "${label}" 상태예요.${bedMsg}${top.roads ? jam : ""} 지도에 경로를 표시했어요.`,
     "bot"
   );
 }

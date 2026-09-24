@@ -12,6 +12,8 @@
 import json
 import os
 import sys
+import time
+import xml.etree.ElementTree as ET
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,8 +26,8 @@ REALTIME_URL = "https://apis-navi.kakaomobility.com/v1/directions"
 FUTURE_URL = "https://apis-navi.kakaomobility.com/v1/future/directions"
 
 
-def load_key():
-    key = os.environ.get("KAKAO_REST_KEY")
+def load_key(name):
+    key = os.environ.get(name)
     if key:
         return key.strip()
     path = os.path.join(BASE, "secret.env")
@@ -33,12 +35,19 @@ def load_key():
         with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line.startswith("KAKAO_REST_KEY="):
+                if line.startswith(name + "="):
                     return line.split("=", 1)[1].strip()
     return None
 
 
-KEY = load_key()
+KEY = load_key("KAKAO_REST_KEY")          # 카카오모빌리티 길찾기
+NEMC_KEY = load_key("NEMC_SERVICE_KEY")   # 국립중앙의료원 응급의료정보
+
+# 응급실 실시간 가용병상 조회 (공공데이터포털)
+NEMC_URL = ("https://apis.data.go.kr/B552657/ErmctInfoInqireService"
+            "/getEmrrmRltmUsefulSckbdInfoInqire")
+_bed_cache = {"at": 0, "data": None}
+BED_TTL = 60  # 초. 일일 호출 한도(1,000건) 보호용
 
 
 def call_kakao(url, params):
@@ -59,6 +68,8 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/directions":
             return self.handle_directions(urllib.parse.parse_qs(parsed.query))
+        if parsed.path == "/api/beds":
+            return self.handle_beds()
         # secret.env 는 브라우저에서 절대 열리지 않게 차단
         if parsed.path.endswith(".env") or parsed.path.endswith(".py"):
             return self.send_json(403, {"error": "forbidden"})
@@ -71,6 +82,64 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def handle_beds(self):
+        """응급실 실시간 가용병상 — 서울 전체를 한 번에 받아 60초 캐시"""
+        if not NEMC_KEY:
+            return self.send_json(200, {"error": "secret.env 에 NEMC_SERVICE_KEY 가 없습니다."})
+
+        now = time.time()
+        if _bed_cache["data"] is not None and now - _bed_cache["at"] < BED_TTL:
+            return self.send_json(200, {"cached": True, **_bed_cache["data"]})
+
+        params = {
+            "serviceKey": NEMC_KEY,
+            "STAGE1": "서울특별시",
+            "pageNo": 1,
+            "numOfRows": 200,
+        }
+        try:
+            req = urllib.request.Request(f"{NEMC_URL}?{urllib.parse.urlencode(params)}")
+            with urllib.request.urlopen(req, timeout=10) as res:
+                raw = res.read().decode("utf-8", "replace")
+        except Exception as e:
+            return self.send_json(200, {"error": f"응급의료정보 연결 실패: {e}"})
+
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            return self.send_json(200, {"error": "응급의료정보 응답을 해석하지 못했습니다."})
+
+        code = root.findtext(".//resultCode")
+        if code not in (None, "00"):
+            msg = root.findtext(".//resultMsg") or root.findtext(".//returnAuthMsg") or "알 수 없음"
+            return self.send_json(200, {"error": f"응급의료정보 오류({code}): {msg}"})
+
+        def num(el, tag):
+            v = (el.findtext(tag) or "").strip()
+            try:
+                return int(v)
+            except ValueError:
+                return None
+
+        items = []
+        for it in root.iter("item"):
+            name = (it.findtext("dutyName") or "").strip()
+            if not name:
+                continue
+            items.append({
+                "name": name,
+                "hpid": (it.findtext("hpid") or "").strip(),
+                # hvec: 응급실 일반병상 가용수, hvs01: 기준(총) 병상수
+                "available": num(it, "hvec"),
+                "total": num(it, "hvs01"),
+                "updated": (it.findtext("hvidate") or "").strip(),
+            })
+
+        data = {"count": len(items), "items": items}
+        _bed_cache["at"] = now
+        _bed_cache["data"] = data
+        return self.send_json(200, {"cached": False, **data})
 
     def handle_directions(self, qs):
         if not KEY:
