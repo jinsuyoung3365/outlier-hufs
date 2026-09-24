@@ -295,7 +295,7 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
 
   <section class="panel input-panel" aria-label="검색 조건">
     <h2 class="panel-title">지금, 어디로 가야 할까요</h2>
-    <p class="lead">출발지·요일·시간을 고르면 실시간 가용병상과 구별 표준화이용비(SIR), 해당 시각 이용강도, 도로 교통을 함께 계산합니다.</p>
+    <p class="lead">순위는 실측 소요시간과 실시간 가용병상으로 정합니다. 구별 표준화이용비(SIR)와 시간대 이용강도는 참고 지표로 함께 표시합니다.</p>
 
     <form id="searchForm" class="search-form">
       <div class="field">
@@ -318,9 +318,9 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
     </form>
 
     <div class="risk-legend">
-      <span><span class="dot dot-safe"></span>응급실 여유</span>
-      <span><span class="dot dot-warn"></span>혼잡</span>
-      <span><span class="dot dot-danger"></span>과부하</span>
+      <span><span class="dot dot-safe"></span>지역 이용부담 낮음</span>
+      <span><span class="dot dot-warn"></span>보통</span>
+      <span><span class="dot dot-danger"></span>높음</span>
     </div>
   </section>
 
@@ -364,7 +364,7 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
 </main>
 
 <footer class="footer">
-  제15회 한국외대 총장배 이공계 학술제 · 팀 아웃라이어 — 응급실 혼잡도: 실시간 가용병상(국립중앙의료원) × 구별 연령표준화 이용비(SIR) × 시간대·요일 이용강도(2024) · 교통: 카카오모빌리티 실측 · 교통: 카카오모빌리티 실측
+  제15회 한국외대 총장배 이공계 학술제 · 팀 아웃라이어 — 응급실 혼잡도: 순위: 카카오모빌리티 실측 소요시간 + 국립중앙의료원 실시간 가용병상 · 참고 지표: 구별 연령표준화 이용비(SIR)·시간대 이용강도(2024) · 교통: 카카오모빌리티 실측
 </footer>
 
 <script>window.__kakaoSdkStatus = "loading";</script>
@@ -384,7 +384,7 @@ h1,h2,.brand-name,.hero-eyebrow,.hospital-eta,.clock{
    - 실시간 병상 계수 = 국립중앙의료원 응급실 실시간 가용병상 API
      · 점유율 0%일 때 0.7, 100%일 때 1.3 (1.0 중립)
      · '지금 출발'일 때만 반영, 미래 시각 조회에는 적용하지 않음
-     · 가용병상 0 이하인 병원은 추천 순위에서 후순위로 강등(rankScore 참조)
+     · 가용병상 0 이하인 병원은 추천 순위에서 후순위로 강등(scoreCandidates 참조)
    - baseIndex = 해당 구의 연령표준화 응급실 이용비(SIR)를 0.30~0.85로 선형 변환한 값
      · SIR = 관측 이용건수 ÷ 기대 이용건수 (간접 연령표준화, 10개 연령군)
      · 자료: 서울 거주자 응급실 이용(2024) + 주민등록인구 구별·세별(2024 4분기)
@@ -502,13 +502,41 @@ function estimateEtaMinutes(distanceKm, hour) {
   return Math.max(1, Math.round((distanceKm / speedKmh) * 60));
 }
 
-// 응급실 혼잡도 60% + 소요시간 40% (가중치는 팀 논의 후 조정)
-// 추천 점수: 낮을수록 우선. 위험도 60% + 소요시간 40%
-// 단, 가용병상이 0 이하(정원 초과)인 병원은 통계값과 무관하게 후순위로 내린다.
-// 응급 상황에서 "지금 수용 가능한가"는 평상시 혼잡 경향보다 우선하는 정보이기 때문.
-function rankScore(h) {
-  const base = h.risk * 0.6 + (h.eta / 60) * 0.4;
-  return base + (isFull(h.bed) ? 1 : 0);
+/* ── 추천 순위 산정 ──────────────────────────────────────────
+   순위는 "그 병원의 현재 상황"만으로 정한다.
+     ① 실제 소요시간 (카카오모빌리티 실측 — 교통 정체 반영)
+     ② 실시간 가용병상 (국립중앙의료원)
+   가용병상이 0 이하(정원 초과)면 순위에서 후순위로 강등한다.
+
+   구별 SIR은 '그 구 거주자의 연간 이용 부담'이지 '그 병원의 현재 혼잡도'가
+   아니므로 순위 산정에서 제외한다. (병원 소재지 기준 자료를 확보하기 전까지
+   병원 혼잡도의 대리지표로 쓸 수 없음 — 보고서 한계 참조)
+   시간대·요일 계수도 모든 병원에 동일하게 곱해져 순위를 바꾸지 못하므로
+   참고 지표로만 표시한다.
+   ──────────────────────────────────────────────────────── */
+const W_TIME = 0.6;  // 소요시간 가중치
+const W_BED  = 0.4;  // 병상 여유 가중치
+
+// 후보군 안에서 0~1로 상대 정규화 (값이 하나뿐이면 0)
+function normalize(values) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min;
+  return values.map((v) => (span === 0 ? 0 : (v - min) / span));
+}
+
+// 후보 전체에 점수를 매긴다. 낮을수록 우선.
+function scoreCandidates(list) {
+  const etaN = normalize(list.map((h) => h.eta));
+  // 병상 여유율: 클수록 좋으므로 부족율(1 - 여유율)로 뒤집어 사용
+  const shortage = list.map((h) => {
+    const b = h.bed;
+    if (!b || b.available == null || !b.total || b.total <= 0) return 0.5; // 정보 없음 = 중립
+    return 1 - Math.min(1, Math.max(0, b.available / b.total));
+  });
+  list.forEach((h, i) => {
+    h.score = W_TIME * etaN[i] + W_BED * shortage[i] + (isFull(h.bed) ? 1 : 0);
+  });
+  return list;
 }
 
 // 실시간 가용병상이 0 이하 = 현재 수용 여력 없음
@@ -644,12 +672,12 @@ async function computeRecommendations(origin, day, hour) {
   const base = HOSPITALS.map((h) => {
     const distanceKm = +(haversineKm(origin.lat, origin.lng, h.lat, h.lng) * 1.3).toFixed(1);
     const bed = findBed(beds, h);
-    const risk = Math.min(1, h.baseIndex * tf * bedFactor(bed));
+    const risk = Math.min(1, h.baseIndex * tf);  // 참고 지표(지역 이용 부담 × 시간대)
     return {
       ...h, distanceKm, risk, bed,
       eta: estimateEtaMinutes(distanceKm, hour), roads: null, source: "estimate", jamKm: 0,
     };
-  }).sort((a, b) => rankScore(a) - rankScore(b));
+  }).sort((a, b) => a.eta - b.eta);   // 1차: 가까운 순으로 후보 추림
 
   const departure = departureParam(day, hour);
   const cands = base.slice(0, CANDIDATES);
@@ -680,8 +708,9 @@ async function computeRecommendations(origin, day, hour) {
     }
   }
 
-  // 3) 실제 소요시간 기준 재정렬
-  const ranked = cands.sort((a, b) => rankScore(a) - rankScore(b)).slice(0, 3);
+  // 3) 실측 소요시간 + 실시간 병상으로 최종 순위 산정
+  scoreCandidates(cands);
+  const ranked = cands.sort((a, b) => a.score - b.score).slice(0, 3);
   return { ranked, notice, departure, bedsUsed: !!beds };
 }
 
@@ -808,10 +837,10 @@ function renderHospitals(list, origin, day, hour, departure, bedsUsed) {
   const ul = document.getElementById("hospitalList");
   const when = departure ? `${day} ${hour}시 출발 기준` : "지금 출발 기준";
   const basis = bedsUsed
-    ? "실시간 가용병상 · 구별 표준화이용비(SIR) · 시간대 이용강도 · 도로 교통"
-    : "구별 표준화이용비(SIR) · 시간대 이용강도 · 도로 교통";
+    ? "실측 소요시간과 실시간 가용병상"
+    : "실측 소요시간";
   document.getElementById("resultLead").textContent =
-    `${origin.label} 출발 · ${when} — ${basis}을 함께 계산한 상위 3곳입니다.`;
+    `${origin.label} 출발 · ${when} — ${basis}으로 순위를 매긴 상위 3곳입니다. 배지의 지역 지표는 참고용입니다.`;
 
   ul.innerHTML = "";
   list.forEach((h, i) => {
@@ -835,7 +864,7 @@ function renderHospitals(list, origin, day, hour, departure, bedsUsed) {
       <div class="info">
         <div class="hospital-name">${escapeHtml(h.name)}</div>
         <div class="hospital-sub">${escapeHtml(h.gu)} · ${h.distanceKm}km · ${sourceLabel(h.source)}${h.bed && h.bed.updated ? ` · 병상 ${bedUpdatedLabel(h.bed.updated)}` : ""}</div>
-        <div class="badges"><span class="badge ${level}">응급실 ${label}</span>${bedTag}${jam}</div>
+        <div class="badges"><span class="badge ${level}">지역 이용부담 ${label}</span>${bedTag}${jam}</div>
       </div>
       <div class="hospital-eta">${h.eta}<small>분</small></div>`;
     li.addEventListener("click", () => selectRoute(i));
